@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>com.glasswall.app</string>
+    <key>CFBundleName</key>
+    <string>GlassWall</string>
+    <key>CFBundleDisplayName</key>
+    <string>GlassWall</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>CFBundleExecutable</key>
+    <string>GlassWall</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>13.0</string>
+    <key>LSUIElement</key>
+    <false/>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+    <!--
+        Privacy usage descriptions — shown by the OS when entitlements are
+        exercised. These are informational only; actual access requires
+        developer provisioning.
+    -->
+    <key>NSNetworkVolumesUsageDescription</key>
+    <string>GlassWall monitors network connections to protect your Mac.</string>
+    <key>NSSystemExtensionUsageDescription</key>
+    <string>GlassWall uses a System Extension to filter network connections per-process.</string>
+    <!--
+        SMPrivilegedExecutables — declares the ES daemon as an authorised
+        privileged helper tool (SMJobBless style).
+    -->
+    <key>SMPrivilegedExecutables</key>
+    <dict>
+        <key>com.glasswall.app.esclient</key>
+        <string>anchor apple generic and identifier "com.glasswall.app.esclient" and (certificate leaf[field.1.2.840.113635.100.6.1.9] /* Mac App Store */ or certificate 1[field.1.2.840.113635.100.6.2.6] /* Mac Developer */ and certificate leaf[field.1.2.840.113635.100.6.1.13] /* Developer ID Application */)</string>
+    </dict>
+</dict>
+</plist>

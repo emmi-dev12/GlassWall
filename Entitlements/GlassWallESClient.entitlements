@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+        com.apple.developer.endpoint-security.client
+        REQUIRED for es_new_client() to succeed.
+        Must be explicitly requested from and approved by Apple for production.
+        During development, disable SIP and run:
+          sudo csrutil enable --without fs
+        or use an Apple-provisioned development certificate with the entitlement.
+    -->
+    <key>com.apple.developer.endpoint-security.client</key>
+    <true/>
+
+    <!--
+        The ES daemon is a LaunchDaemon (runs as root).
+        It must NOT be sandboxed — sandboxed processes cannot hold an ES client.
+    -->
+    <key>com.apple.security.app-sandbox</key>
+    <false/>
+
+    <!--
+        Allows the daemon to read process information via proc_pidpath.
+    -->
+    <key>com.apple.private.security.clear-library-validation</key>
+    <true/>
+
+    <!-- XPC server — accept connections from the main app -->
+    <key>com.apple.security.network.server</key>
+    <true/>
+</dict>
+</plist>

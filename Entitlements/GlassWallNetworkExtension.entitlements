@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+        com.apple.developer.networking.networkextension
+        The extension itself must declare the specific provider class it
+        implements.  NEFilterDataProvider + NEFilterControlProvider = content-filter-provider.
+    -->
+    <key>com.apple.developer.networking.networkextension</key>
+    <array>
+        <string>content-filter-provider</string>
+    </array>
+
+    <!--
+        Shared App Group — must match the main app's group so that
+        NEFilterProviderConfiguration.vendorConfiguration can be accessed.
+    -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.com.glasswall.app</string>
+    </array>
+
+    <!-- System extensions run in a restricted sandbox -->
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+
+    <!-- XPC client — connect to the main app's Mach service -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+</dict>
+</plist>

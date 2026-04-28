@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+        com.apple.security.application-groups
+        Shared container used for rule persistence between the main app and
+        the network extension.  Must match GlassWall.appGroupID constant.
+    -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.com.glasswall.app</string>
+    </array>
+
+    <!--
+        com.apple.developer.networking.networkextension
+        Allows the app to manage NEFilterManager (enable/disable the content
+        filter) and submit OSSystemExtensionRequest for the NE bundle.
+        Value must include the specific provider type(s) in use.
+    -->
+    <key>com.apple.developer.networking.networkextension</key>
+    <array>
+        <string>content-filter-provider</string>
+        <string>app-proxy-provider</string>
+    </array>
+
+    <!--
+        com.apple.developer.system-extension.install
+        Required to call OSSystemExtensionManager.submitRequest().
+        This entitlement must be requested from Apple during provisioning.
+    -->
+    <key>com.apple.developer.system-extension.install</key>
+    <true/>
+
+    <!-- Standard macOS sandbox -->
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+
+    <!-- Network client access needed for XPC connections to the ES daemon -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+
+    <!-- Allow reading app-group shared preferences -->
+    <key>com.apple.security.temporary-exception.shared-preference.read-write</key>
+    <array>
+        <string>group.com.glasswall.app</string>
+    </array>
+</dict>
+</plist>

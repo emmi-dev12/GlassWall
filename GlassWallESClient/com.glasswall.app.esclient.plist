@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+    LaunchDaemon plist — install to /Library/LaunchDaemons/
+    The ES daemon runs as root and is started by launchd at boot.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.glasswall.app.esclient</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Library/PrivilegedHelperTools/com.glasswall.app.esclient</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <!-- Mach services this daemon will expose -->
+    <key>MachServices</key>
+    <dict>
+        <key>com.glasswall.app.esevents</key>
+        <true/>
+    </dict>
+
+    <key>StandardErrorPath</key>
+    <string>/var/log/glasswall-esdaemon.log</string>
+
+    <key>StandardOutPath</key>
+    <string>/var/log/glasswall-esdaemon.log</string>
+
+    <!-- Throttle restarts on crash -->
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+</dict>
+</plist>
