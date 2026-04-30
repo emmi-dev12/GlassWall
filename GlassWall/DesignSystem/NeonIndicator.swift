@@ -1,73 +1,91 @@
-// MARK: - Neon Status Indicator
-// Animated glowing dot that represents connection or security state.
-// Supports pulsing animation for pending/active states.
+// MARK: - Status Dot
+// Minimal animated status indicator. Animates only when `isAnimating` is true
+// so static states don't waste CPU on the render thread.
 
 import SwiftUI
 
-struct NeonIndicator: View {
+struct StatusDot: View {
 
     let color: Color
     var size: CGFloat     = 8
     var isAnimating: Bool = false
 
-    @State private var glowScale: CGFloat  = 1.0
-    @State private var glowOpacity: Double = 0.6
+    @State private var scale: CGFloat  = 1.0
+    @State private var opacity: Double = 0.5
 
     var body: some View {
         ZStack {
-            // Outer glow
+            // Outer pulse ring (animated only)
             Circle()
-                .fill(color.opacity(glowOpacity * 0.4))
-                .frame(width: size * 2.5, height: size * 2.5)
-                .scaleEffect(glowScale)
-                .blur(radius: size * 0.6)
+                .fill(color.opacity(opacity * 0.35))
+                .frame(width: size * 2.8, height: size * 2.8)
+                .scaleEffect(scale)
+                .blur(radius: size * 0.5)
 
-            // Mid glow ring
-            Circle()
-                .fill(color.opacity(glowOpacity * 0.6))
-                .frame(width: size * 1.6, height: size * 1.6)
-
-            // Core dot
+            // Core
             Circle()
                 .fill(color)
                 .frame(width: size, height: size)
+                .gwGlowShadow(color: color, radius: size * 0.9)
         }
         .onAppear {
             guard isAnimating else { return }
-            withAnimation(.gwGlowPulse) {
-                glowScale   = 1.25
-                glowOpacity = 1.0
-            }
+            withAnimation(.gwPulse) { scale = 1.3; opacity = 0.9 }
         }
-        .onChange(of: isAnimating) { _, animating in
-            if animating {
-                withAnimation(.gwGlowPulse) { glowScale = 1.25; glowOpacity = 1.0 }
-            } else {
-                withAnimation(.gwFast)      { glowScale = 1.0;  glowOpacity = 0.6 }
+        .onChange(of: isAnimating) { _, on in
+            withAnimation(on ? .gwPulse : .gwFade) {
+                scale   = on ? 1.3 : 1.0
+                opacity = on ? 0.9 : 0.5
             }
         }
     }
 }
 
-// ── Verdict-convenience initialiser ──────────────────────────────────────────
-
-extension NeonIndicator {
+extension StatusDot {
     init(verdict: Verdict, size: CGFloat = 8) {
-        self.init(color: verdict.color,
-                  size: size,
+        self.init(color: verdict.color, size: size,
                   isAnimating: verdict == .pending)
     }
 }
 
-// ── Preview ───────────────────────────────────────────────────────────────────
+// ── Verdict pill badge ────────────────────────────────────────────────────────
 
-#Preview {
-    HStack(spacing: 24) {
-        NeonIndicator(verdict: .allow,   size: 10)
-        NeonIndicator(verdict: .block,   size: 10)
-        NeonIndicator(verdict: .pending, size: 10)
-        NeonIndicator(color: .gwAccent,  size: 10, isAnimating: true)
+struct VerdictBadge: View {
+    let verdict: Verdict
+    var compact: Bool = false
+
+    var body: some View {
+        HStack(spacing: GWS.xs) {
+            StatusDot(verdict: verdict, size: compact ? 5 : 6)
+            if !compact {
+                Text(verdict.label)
+                    .font(.gwCaptionMed)
+            }
+        }
+        .foregroundStyle(verdict.color)
+        .padding(.horizontal, compact ? GWS.xs : GWS.sm)
+        .padding(.vertical, compact ? 2 : 3)
+        .background(verdict.color.opacity(0.12))
+        .clipShape(Capsule())
     }
-    .padding(40)
-    .background(Color.gwBgTop)
+}
+
+// ── Rule kind pill ────────────────────────────────────────────────────────────
+
+struct RuleKindBadge: View {
+    let kind: RuleKind
+
+    var body: some View {
+        HStack(spacing: GWS.xs) {
+            Image(systemName: kind.icon)
+                .font(.system(size: 9, weight: .semibold))
+            Text(kind.shortLabel)
+                .font(.gwCaptionMed)
+        }
+        .foregroundStyle(kind.color)
+        .padding(.horizontal, GWS.sm)
+        .padding(.vertical, 3)
+        .background(kind.color.opacity(0.12))
+        .clipShape(Capsule())
+    }
 }

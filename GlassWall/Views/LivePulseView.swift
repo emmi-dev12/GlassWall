@@ -1,271 +1,364 @@
-// MARK: - Live Pulse View
-// Real-time throttled feed of all network connection decisions.
-// Events arrive in batches (see PolicyEngine.flushBuffer) to prevent
-// per-packet UI thrashing. The list is virtualised by SwiftUI's LazyVStack.
+// MARK: - Live Pulse View v2
+// Real-time feed of all network connection decisions.
+// Uses NSWorkspace to load actual app icons for each process.
 
 import SwiftUI
+import AppKit
 
 struct LivePulseView: View {
 
     @EnvironmentObject private var engine: PolicyEngine
-    @State private var searchText = ""
-    @State private var filterVerdict: Verdict? = nil
+    @State private var searchText    = ""
+    @State private var filter: Verdict? = nil
+    @State private var expanded: FlowID? = nil
 
-    private var filtered: [ConnectionEvent] {
+    private var events: [ConnectionEvent] {
         engine.connectionEvents.filter { event in
-            let matchesSearch = searchText.isEmpty ||
-                event.process.name.localizedCaseInsensitiveContains(searchText) ||
-                event.remoteHost.localizedCaseInsensitiveContains(searchText)
-            let matchesFilter = filterVerdict == nil || event.verdict == filterVerdict
-            return matchesSearch && matchesFilter
+            let matchVerdict = filter == nil || event.verdict == filter
+            let matchSearch  = searchText.isEmpty
+                || event.process.name.localizedCaseInsensitiveContains(searchText)
+                || event.remoteHost.localizedCaseInsensitiveContains(searchText)
+            return matchVerdict && matchSearch
         }
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            toolbar
-            Divider().overlay(Color.gwBorderSubtle)
-            if filtered.isEmpty {
+            header
+            GlassDivider()
+
+            if engine.connectionEvents.isEmpty {
                 emptyState
+            } else if events.isEmpty {
+                noResultsState
             } else {
-                eventList
+                feed
             }
         }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // MARK: Toolbar
+    // MARK: Header
     // ─────────────────────────────────────────────────────────────────────────
 
-    private var toolbar: some View {
-        HStack(spacing: GWSpacing.md) {
-            // Live indicator
-            HStack(spacing: GWSpacing.xs) {
-                NeonIndicator(color: .gwAllow, size: 7, isAnimating: true)
-                Text("LIVE")
+    private var header: some View {
+        HStack(spacing: GWS.md) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Live Activity")
+                    .font(.gwTitle)
+                    .foregroundStyle(.gwText1)
+                Text("\(engine.connectionEvents.count) connections monitored")
                     .font(.gwCaption)
-                    .foregroundStyle(.gwTextSecondary)
+                    .foregroundStyle(.gwText3)
             }
 
             Spacer()
 
-            // Search
-            HStack(spacing: GWSpacing.sm) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.gwTextTertiary)
-                TextField("Filter by app or domain…", text: $searchText)
-                    .textFieldStyle(.plain)
-                    .font(.gwBody)
-                    .foregroundStyle(.gwTextPrimary)
-                    .frame(width: 180)
-                if !searchText.isEmpty {
-                    Button { searchText = "" } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.gwTextTertiary)
-                    }
-                    .buttonStyle(.plain)
-                }
+            // Search field
+            SearchField(text: $searchText, placeholder: "Search app or domain…")
+                .frame(width: 210)
+
+            // Filter chips
+            HStack(spacing: GWS.xs) {
+                FilterChip(label: "All",     color: .gwText2,  isOn: filter == nil)    { filter = nil }
+                FilterChip(label: "Allowed", color: .gwAllow,  isOn: filter == .allow) { filter = .allow }
+                FilterChip(label: "Blocked", color: .gwBlock,  isOn: filter == .block) { filter = .block }
+                FilterChip(label: "Waiting", color: .gwPending, isOn: filter == .pending) { filter = .pending }
             }
-            .padding(.horizontal, GWSpacing.md)
-            .padding(.vertical, GWSpacing.xs)
-            .background(Color.gwSurfaceSecondary)
-            .clipShape(Capsule())
-            .overlay(Capsule().strokeBorder(Color.gwBorderSubtle, lineWidth: 0.5))
-
-            // Verdict filter chips
-            HStack(spacing: GWSpacing.xs) {
-                verdictChip(nil,      label: "All")
-                verdictChip(.allow,   label: "Allowed")
-                verdictChip(.block,   label: "Blocked")
-                verdictChip(.pending, label: "Pending")
-            }
-
-            // Event count badge
-            Text("\(filtered.count)")
-                .font(.gwCaption)
-                .foregroundStyle(.gwTextTertiary)
-                .monospacedDigit()
         }
-        .padding(.horizontal, GWSpacing.lg)
-        .padding(.vertical, GWSpacing.md)
-    }
-
-    private func verdictChip(_ verdict: Verdict?, label: String) -> some View {
-        let selected = filterVerdict == verdict
-        return Button {
-            withAnimation(.gwFast) { filterVerdict = verdict }
-        } label: {
-            Text(label)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundStyle(selected
-                    ? (verdict?.color ?? .gwAccent)
-                    : .gwTextTertiary)
-                .padding(.horizontal, GWSpacing.sm)
-                .padding(.vertical, 3)
-                .background(selected
-                    ? (verdict?.color ?? .gwAccent).opacity(0.15)
-                    : Color.clear)
-                .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
+        .padding(.horizontal, GWS.xl)
+        .padding(.vertical, GWS.lg)
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // MARK: Event List
+    // MARK: Feed
     // ─────────────────────────────────────────────────────────────────────────
 
-    private var eventList: some View {
+    private var feed: some View {
         ScrollView {
-            LazyVStack(spacing: 1, pinnedViews: []) {
-                ForEach(filtered) { event in
-                    ConnectionEventRow(event: event)
-                        .transition(.move(edge: .top).combined(with: .opacity))
+            LazyVStack(spacing: 0) {
+                ForEach(events) { event in
+                    PulseRow(event: event, isExpanded: expanded == event.id) {
+                        withAnimation(.gwSnappy) {
+                            expanded = expanded == event.id ? nil : event.id
+                        }
+                    }
+                    GlassDivider().padding(.leading, 60)
                 }
             }
-            .animation(.gwFast, value: filtered.count)
+            .animation(.gwFade, value: events.count)
         }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // MARK: Empty State
+    // MARK: Empty States
     // ─────────────────────────────────────────────────────────────────────────
 
     private var emptyState: some View {
-        VStack(spacing: GWSpacing.lg) {
-            ScanlineEffect(color: .gwAccent)
-                .frame(height: 120)
-                .clipShape(RoundedRectangle(cornerRadius: GWRadius.md))
-                .overlay(
-                    VStack(spacing: GWSpacing.sm) {
-                        Image(systemName: "waveform.path.ecg")
-                            .font(.system(size: 28))
-                            .foregroundStyle(.gwAccent)
-                        Text("Waiting for connections…")
-                            .font(.gwBody)
-                            .foregroundStyle(.gwTextSecondary)
-                    }
-                )
+        VStack(spacing: GWS.xl) {
+            ZStack {
+                ScanLine(color: .gwTeal)
+                    .frame(height: 110)
+                    .clipShape(RoundedRectangle(cornerRadius: GWR.md))
+                    .opacity(0.6)
+
+                VStack(spacing: GWS.md) {
+                    Image(systemName: "waveform.path.ecg")
+                        .font(.system(size: 32, weight: .light))
+                        .foregroundStyle(.gwTeal)
+                        .breathingGlow(.gwTeal, radius: 12)
+                    Text("Watching for connections…")
+                        .font(.gwHeadline)
+                        .foregroundStyle(.gwText2)
+                }
+            }
+            .frame(width: 340)
+
+            Text("Network activity will appear here in real time once apps start making connections.")
+                .font(.gwBody)
+                .foregroundStyle(.gwText3)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 340)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(GWSpacing.xxl)
+        .padding(GWS.xxxl)
+    }
+
+    private var noResultsState: some View {
+        VStack(spacing: GWS.lg) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 28, weight: .light))
+                .foregroundStyle(.gwText3)
+            Text("No matching connections")
+                .font(.gwHeadline)
+                .foregroundStyle(.gwText2)
+            Button("Clear filter") { searchText = ""; filter = nil }
+                .buttonStyle(.plain)
+                .font(.gwBodyMed)
+                .foregroundStyle(.gwTeal)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MARK: Connection Event Row
+// MARK: Pulse Row
 // ─────────────────────────────────────────────────────────────────────────────
 
-struct ConnectionEventRow: View {
+struct PulseRow: View {
 
     let event: ConnectionEvent
-    @State private var isExpanded = false
+    let isExpanded: Bool
+    let onTap: () -> Void
+
+    @State private var isHovered = false
+    @State private var appIcon: NSImage? = nil
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: GWSpacing.md) {
+            // Main row
+            HStack(spacing: GWS.lg) {
+                // App icon + status dot
+                ZStack(alignment: .bottomTrailing) {
+                    Group {
+                        if let img = appIcon {
+                            Image(nsImage: img)
+                                .resizable()
+                                .interpolation(.high)
+                        } else {
+                            Image(systemName: "app.dashed")
+                                .font(.system(size: 20))
+                                .foregroundStyle(.gwText3)
+                                .frame(width: 36, height: 36)
+                        }
+                    }
+                    .frame(width: 36, height: 36)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
 
-                NeonIndicator(verdict: event.verdict, size: 7)
-                    .frame(width: 20)
-
-                // App icon placeholder + name
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(event.process.name)
-                        .font(.gwHeadline)
-                        .foregroundStyle(.gwTextPrimary)
-                        .lineLimit(1)
-                    Text("PID \(event.process.pid)")
-                        .font(.gwCaption)
-                        .foregroundStyle(.gwTextTertiary)
+                    StatusDot(verdict: event.verdict, size: 7)
+                        .offset(x: 3, y: 3)
                 }
-                .frame(width: 120, alignment: .leading)
+                .frame(width: 36)
 
-                // Arrow
-                Image(systemName: "arrow.right")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.gwTextTertiary)
+                // Process + destination
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: GWS.sm) {
+                        Text(event.process.name)
+                            .font(.gwHeadline)
+                            .foregroundStyle(.gwText1)
+                            .lineLimit(1)
 
-                // Destination
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(event.remoteHost)
-                        .font(.gwMono)
-                        .foregroundStyle(.gwTextPrimary)
-                        .lineLimit(1)
-                    Text(":\(event.remotePort) \(event.proto.rawValue)")
-                        .font(.gwCaption)
-                        .foregroundStyle(.gwTextTertiary)
+                        if !event.process.isSignatureValid {
+                            Label("Unsigned", systemImage: "exclamationmark.triangle.fill")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(.gwWarning)
+                                .labelStyle(.iconOnly)
+                        }
+                    }
+
+                    HStack(spacing: GWS.xs) {
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.gwText3)
+                        Text(event.remoteHost)
+                            .font(.gwMono)
+                            .foregroundStyle(.gwText2)
+                            .lineLimit(1)
+                        Text(":\(event.remotePort)")
+                            .font(.gwMonoSmall)
+                            .foregroundStyle(.gwText3)
+                    }
                 }
 
                 Spacer()
 
-                // Verdict badge
-                verdictBadge
+                // Verdict + time
+                VStack(alignment: .trailing, spacing: 4) {
+                    VerdictBadge(verdict: event.verdict, compact: false)
+                    Text(event.timestamp, format: .dateTime.hour().minute().second())
+                        .font(.gwMonoSmall)
+                        .foregroundStyle(.gwText3)
+                        .monospacedDigit()
+                }
 
-                // Timestamp
-                Text(event.timestamp, format: .dateTime.hour().minute().second())
-                    .font(.gwCaption)
-                    .foregroundStyle(.gwTextTertiary)
-                    .monospacedDigit()
-                    .frame(width: 70, alignment: .trailing)
-
-                // Expand chevron
                 Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.gwTextTertiary)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.gwText3)
+                    .animation(.gwSnappy, value: isExpanded)
             }
-            .padding(.horizontal, GWSpacing.lg)
-            .padding(.vertical, GWSpacing.md)
+            .padding(.horizontal, GWS.xl)
+            .padding(.vertical, GWS.md)
+            .background(isHovered || isExpanded ? Color.gwSurfaceHover : Color.clear)
             .contentShape(Rectangle())
-            .onTapGesture {
-                withAnimation(.gwFast) { isExpanded.toggle() }
-            }
+            .onTapGesture(perform: onTap)
+            .onHover { isHovered = $0 }
 
+            // Expanded detail panel
             if isExpanded {
-                expandedDetail
-                    .transition(.move(edge: .top).combined(with: .opacity))
+                expandedPanel
+                    .transition(.gwFadeIn)
             }
-
-            Divider().overlay(Color.gwBorderSubtle.opacity(0.5))
         }
-        .background(isExpanded ? Color.gwSurfaceSecondary : .clear)
+        .animation(.gwSnappy, value: isExpanded)
+        .task { appIcon = loadAppIcon(path: event.process.binaryPath) }
     }
 
-    private var verdictBadge: some View {
-        Text(event.verdict.label)
-            .font(.system(size: 10, weight: .semibold, design: .rounded))
-            .foregroundStyle(event.verdict.color)
-            .padding(.horizontal, GWSpacing.sm)
-            .padding(.vertical, 3)
-            .background(event.verdict.color.opacity(0.12))
-            .clipShape(Capsule())
-    }
-
-    private var expandedDetail: some View {
-        VStack(alignment: .leading, spacing: GWSpacing.sm) {
-            detailRow("Binary", value: event.process.binaryPath)
-            if let ip = event.remoteIP {
-                detailRow("Resolved IP", value: ip)
+    private var expandedPanel: some View {
+        VStack(alignment: .leading, spacing: GWS.sm) {
+            HStack(spacing: GWS.xxl) {
+                detailColumn(items: [
+                    ("Binary",      (event.process.binaryPath as NSString).lastPathComponent),
+                    ("Full path",   event.process.binaryPath),
+                    ("PID",         "\(event.process.pid)"),
+                ])
+                detailColumn(items: [
+                    ("Remote IP",   event.remoteIP ?? "—"),
+                    ("Protocol",    event.proto.rawValue),
+                    ("Signing",     event.process.signingIdentity ?? "Unsigned / Ad-hoc"),
+                ])
+                if let kind = event.ruleKind {
+                    VStack(alignment: .leading, spacing: GWS.xs) {
+                        Text("Rule applied")
+                            .font(.gwCaptionMed)
+                            .foregroundStyle(.gwText3)
+                        RuleKindBadge(kind: kind)
+                    }
+                }
             }
-            if let kind = event.ruleKind {
-                detailRow("Rule", value: kind.label)
-            }
-            detailRow("Signing ID", value: event.process.signingIdentity ?? "—")
-            detailRow("Signature", value: event.process.isSignatureValid ? "Valid" : "Invalid / Ad-hoc")
         }
-        .padding(.horizontal, GWSpacing.xl + GWSpacing.md)
-        .padding(.bottom, GWSpacing.md)
+        .padding(.horizontal, GWS.xl + 36 + GWS.lg)   // align with text column
+        .padding(.bottom, GWS.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.gwSurface.opacity(0.5))
     }
 
-    private func detailRow(_ label: String, value: String) -> some View {
-        HStack(alignment: .top) {
+    private func detailColumn(items: [(String, String)]) -> some View {
+        VStack(alignment: .leading, spacing: GWS.xs) {
+            ForEach(items, id: \.0) { label, value in
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(label)
+                        .font(.gwCaptionMed)
+                        .foregroundStyle(.gwText3)
+                    Text(value)
+                        .font(.gwMono)
+                        .foregroundStyle(.gwText2)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                }
+            }
+        }
+    }
+
+    private func loadAppIcon(path: String) -> NSImage? {
+        guard path != "unknown", !path.isEmpty else { return nil }
+        // Walk up the path to find the .app bundle
+        var url = URL(fileURLWithPath: path)
+        while url.pathExtension != "app" && url.pathComponents.count > 2 {
+            url = url.deletingLastPathComponent()
+        }
+        let workspace = NSWorkspace.shared
+        if url.pathExtension == "app" {
+            return workspace.icon(forFile: url.path)
+        }
+        return workspace.icon(forFile: path)
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MARK: Reusable Search Field + Filter Chip
+// ─────────────────────────────────────────────────────────────────────────────
+
+struct SearchField: View {
+    @Binding var text: String
+    var placeholder: String = "Search…"
+
+    var body: some View {
+        HStack(spacing: GWS.sm) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 12))
+                .foregroundStyle(.gwText3)
+            TextField(placeholder, text: $text)
+                .textFieldStyle(.plain)
+                .font(.gwBody)
+                .foregroundStyle(.gwText1)
+            if !text.isEmpty {
+                Button { text = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.gwText3)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, GWS.md)
+        .padding(.vertical, GWS.sm - 1)
+        .background(Color.gwSurface)
+        .clipShape(RoundedRectangle(cornerRadius: GWR.pill, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: GWR.pill, style: .continuous)
+                .strokeBorder(Color.gwBorder, lineWidth: 0.75)
+        )
+    }
+}
+
+struct FilterChip: View {
+    let label: String
+    let color: Color
+    let isOn:  Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
             Text(label)
-                .font(.gwCaption)
-                .foregroundStyle(.gwTextTertiary)
-                .frame(width: 80, alignment: .leading)
-            Text(value)
-                .font(.gwMono)
-                .foregroundStyle(.gwTextSecondary)
-                .textSelection(.enabled)
+                .font(.gwCaptionMed)
+                .foregroundStyle(isOn ? color : .gwText3)
+                .padding(.horizontal, GWS.sm)
+                .padding(.vertical, 4)
+                .background(isOn ? color.opacity(0.14) : Color.clear)
+                .clipShape(Capsule())
+                .overlay(Capsule().strokeBorder(isOn ? color.opacity(0.30) : Color.clear, lineWidth: 0.75))
         }
+        .buttonStyle(.plain)
+        .animation(.gwFade, value: isOn)
     }
 }

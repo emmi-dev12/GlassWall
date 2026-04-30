@@ -1,0 +1,176 @@
+name: Build GlassWall Universal App
+
+on:
+  push:
+    branches: [ main, "claude/**" ]
+    tags:     [ "v*" ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to upload release assets
+
+jobs:
+  build:
+    name: Build Universal macOS App
+    runs-on: macos-14   # Apple Silicon runner; produces arm64+x86_64 fat binary
+
+    env:
+      SCHEME:        GlassWall
+      CONFIGURATION: Release
+      DERIVED_DATA:  ${{ github.workspace }}/DerivedData
+      ARTIFACTS_DIR: ${{ github.workspace }}/artifacts
+
+    steps:
+      # ── Checkout ──────────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Toolchain info ────────────────────────────────────────────────────────
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      # ── Dependency: xcodegen ─────────────────────────────────────────────────
+      - name: Cache Homebrew packages
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/Homebrew
+          key: homebrew-${{ runner.os }}-xcodegen
+          restore-keys: homebrew-${{ runner.os }}-
+
+      - name: Install xcodegen
+        run: |
+          if ! command -v xcodegen &>/dev/null; then
+            brew install xcodegen
+          fi
+          xcodegen version
+
+      # ── Generate Xcode project from project.yml ──────────────────────────────
+      - name: Generate Xcode project
+        run: xcodegen generate --spec project.yml
+
+      # ── Build universal binary (arm64 + x86_64) ───────────────────────────────
+      # CODE_SIGNING_ALLOWED=NO lets CI build without a developer certificate.
+      # Remove that flag (and add signing secrets) for a notarised distribution build.
+      - name: Build universal app
+        run: |
+          set -euo pipefail
+          xcodebuild build \
+            -project GlassWall.xcodeproj \
+            -scheme "$SCHEME" \
+            -configuration "$CONFIGURATION" \
+            -destination "generic/platform=macOS" \
+            -derivedDataPath "$DERIVED_DATA" \
+            ARCHS="arm64 x86_64" \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcbeautify --renderer github-actions || \
+          xcodebuild build \
+            -project GlassWall.xcodeproj \
+            -scheme "$SCHEME" \
+            -configuration "$CONFIGURATION" \
+            -destination "generic/platform=macOS" \
+            -derivedDataPath "$DERIVED_DATA" \
+            ARCHS="arm64 x86_64" \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      # ── Locate the built .app ─────────────────────────────────────────────────
+      - name: Locate app bundle
+        id: locate
+        run: |
+          APP=$(find "$DERIVED_DATA" -name "GlassWall.app" \
+                  -not -path "*/Index.noindex/*" \
+                  | head -1)
+          if [ -z "$APP" ]; then
+            echo "ERROR: GlassWall.app not found in DerivedData"
+            find "$DERIVED_DATA" -name "*.app" | head -10
+            exit 1
+          fi
+          echo "path=$APP" >> "$GITHUB_OUTPUT"
+          echo "Found: $APP"
+
+      # ── Verify universal binary ───────────────────────────────────────────────
+      - name: Verify universal (fat) binary
+        run: |
+          BIN="${{ steps.locate.outputs.path }}/Contents/MacOS/GlassWall"
+          echo "Binary: $BIN"
+          lipo -info "$BIN"
+          # Fail if either architecture is missing
+          lipo -info "$BIN" | grep -q "arm64"  || { echo "MISSING arm64";  exit 1; }
+          lipo -info "$BIN" | grep -q "x86_64" || { echo "MISSING x86_64"; exit 1; }
+          echo "✅ Universal binary confirmed (arm64 + x86_64)"
+
+      # ── Package into ZIP ──────────────────────────────────────────────────────
+      - name: Create artifact directory
+        run: mkdir -p "$ARTIFACTS_DIR"
+
+      - name: Determine version tag
+        id: version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            TAG="dev-${GITHUB_SHA::7}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Version tag: $TAG"
+
+      - name: Package app into ZIP
+        id: package
+        run: |
+          ZIP_NAME="GlassWall-${{ steps.version.outputs.tag }}-universal.zip"
+          APP="${{ steps.locate.outputs.path }}"
+          APP_DIR=$(dirname "$APP")
+          cd "$APP_DIR"
+          zip -r --symlinks "$ARTIFACTS_DIR/$ZIP_NAME" GlassWall.app
+          echo "name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
+          echo "path=$ARTIFACTS_DIR/$ZIP_NAME" >> "$GITHUB_OUTPUT"
+          ls -lh "$ARTIFACTS_DIR/$ZIP_NAME"
+
+      # ── Show ZIP contents summary ─────────────────────────────────────────────
+      - name: ZIP summary
+        run: |
+          ZIP="${{ steps.package.outputs.path }}"
+          echo "📦 Package: $(basename $ZIP)"
+          echo "📏 Size:    $(du -sh "$ZIP" | cut -f1)"
+          echo "📄 Contents:"
+          unzip -l "$ZIP" | tail -5
+
+      # ── Upload build artifact ─────────────────────────────────────────────────
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GlassWall-${{ steps.version.outputs.tag }}-universal
+          path: ${{ steps.package.outputs.path }}
+          retention-days: 30
+          if-no-files-found: error
+
+      # ── Attach to GitHub Release (tag pushes only) ────────────────────────────
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.package.outputs.path }}
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          body: |
+            ## GlassWall ${{ steps.version.outputs.tag }}
+
+            ### Installation
+            1. Download `GlassWall-${{ steps.version.outputs.tag }}-universal.zip`
+            2. Unzip and drag **GlassWall.app** to your Applications folder
+            3. Launch GlassWall and follow the on-screen setup to enable the Network Extension
+            4. Open **System Settings → Privacy & Security** and approve the extension if prompted
+
+            ### Requirements
+            - macOS 13 Ventura or later
+            - Apple Silicon or Intel Mac (universal binary)
+
+            > **Note:** This build is unsigned. macOS will show a security prompt on first launch.
+            > Right-click → Open → Open to bypass Gatekeeper.

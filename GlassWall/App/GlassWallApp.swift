@@ -1,6 +1,4 @@
 // MARK: - GlassWall Application Entry Point
-// SwiftUI @main that creates the PolicyEngine, wires AppDelegate, and presents
-// the main window as a standard titled window (not a Settings-style panel).
 
 import SwiftUI
 
@@ -10,25 +8,45 @@ struct GlassWallApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var engine = PolicyEngine()
 
-    init() {
-        // Inject the engine into AppDelegate immediately after @StateObject
-        // initialises it.  The adaptor is already created at this point.
-    }
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @State private var showOnboarding = false
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(engine)
                 .onAppear {
-                    // Forward engine reference to AppDelegate (needed for menu bar).
                     appDelegate.engine = engine
+                    if !hasCompletedOnboarding {
+                        // Short delay so the main window renders first.
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                            showOnboarding = true
+                        }
+                    }
+                }
+                .sheet(isPresented: $showOnboarding, onDismiss: {
+                    hasCompletedOnboarding = true
+                }) {
+                    OnboardingView()
                 }
         }
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified(showsTitle: false))
         .commands {
-            // Remove the standard New Window command; GlassWall is single-window.
             CommandGroup(replacing: .newItem) {}
+
+            CommandMenu("GlassWall") {
+                Button("Toggle Clean Room") {
+                    engine.setPanicMode(!engine.panicMode.isEnabled)
+                }
+                .keyboardShortcut("k", modifiers: [.command, .shift])
+
+                Divider()
+
+                Button("Show Setup Guide") {
+                    showOnboarding = true
+                }
+            }
         }
     }
 }

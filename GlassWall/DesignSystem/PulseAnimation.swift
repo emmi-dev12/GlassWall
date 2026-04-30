@@ -1,98 +1,85 @@
-// MARK: - Pulse Animation Utilities
-// Reusable animation modifiers for the live-pulse feed and panic mode banner.
+// MARK: - Animation Utilities v2
 
 import SwiftUI
 
-// ── Ripple effect — expanding ring for new critical events ────────────────────
+// ── Breathing glow modifier (idle system animation) ───────────────────────────
 
-struct RippleEffect: View {
-
-    let color: Color
-    var count: Int      = 2
-    var duration: Double = 1.8
-
-    @State private var triggered = false
-
-    var body: some View {
-        ZStack {
-            ForEach(0..<count, id: \.self) { i in
-                Circle()
-                    .stroke(color.opacity(triggered ? 0 : 0.6), lineWidth: 1.5)
-                    .scaleEffect(triggered ? 2.4 : 0.8)
-                    .animation(
-                        .easeOut(duration: duration).delay(Double(i) * 0.3).repeatForever(),
-                        value: triggered
-                    )
-            }
-        }
-        .onAppear { triggered = true }
-    }
-}
-
-// ── Heartbeat / scanner sweep ─────────────────────────────────────────────────
-
-struct ScanlineEffect: View {
-
-    var color: Color = .gwAccent
-
-    @State private var offset: CGFloat = 0
-
-    var body: some View {
-        GeometryReader { geo in
-            Rectangle()
-                .fill(
-                    LinearGradient(
-                        colors: [.clear, color.opacity(0.25), .clear],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .frame(height: 40)
-                .offset(y: offset)
-                .onAppear {
-                    withAnimation(.linear(duration: 3).repeatForever(autoreverses: false)) {
-                        offset = geo.size.height
-                    }
-                }
-        }
-        .clipped()
-    }
-}
-
-// ── Glow pulse modifier ───────────────────────────────────────────────────────
-
-struct GlowPulse: ViewModifier {
-
+struct BreathingGlow: ViewModifier {
     let color: Color
     var radius: CGFloat = 8
     @State private var on = false
 
     func body(content: Content) -> some View {
         content
-            .shadow(color: color.opacity(on ? 0.9 : 0.2), radius: on ? radius : radius * 0.4)
-            .onAppear {
-                withAnimation(.gwGlowPulse) { on = true }
-            }
+            .shadow(color: color.opacity(on ? 0.55 : 0.15),
+                    radius: on ? radius : radius * 0.3)
+            .onAppear { withAnimation(.gwBreath) { on = true } }
     }
 }
 
 extension View {
-    func glowPulse(color: Color, radius: CGFloat = 8) -> some View {
-        modifier(GlowPulse(color: color, radius: radius))
+    func breathingGlow(_ color: Color, radius: CGFloat = 8) -> some View {
+        modifier(BreathingGlow(color: color, radius: radius))
     }
 }
 
-// ── Panic mode border flash ───────────────────────────────────────────────────
+// ── Expanding ring (used for watchlist hit alerts) ────────────────────────────
 
-struct PanicBorderFlash: ViewModifier {
+struct ExpandingRing: View {
+    let color: Color
+    @State private var scale: CGFloat   = 0.6
+    @State private var opacity: Double  = 0.8
 
+    var body: some View {
+        Circle()
+            .stroke(color, lineWidth: 1.5)
+            .scaleEffect(scale)
+            .opacity(opacity)
+            .onAppear {
+                withAnimation(.easeOut(duration: 1.6).repeatForever(autoreverses: false)) {
+                    scale = 2.2; opacity = 0
+                }
+            }
+    }
+}
+
+// ── Scan line (subtle texture for empty states) ───────────────────────────────
+
+struct ScanLine: View {
+    var color: Color = .gwTeal
+
+    @State private var offset: CGFloat = -80
+
+    var body: some View {
+        GeometryReader { geo in
+            LinearGradient(
+                colors: [.clear, color.opacity(0.18), color.opacity(0.30),
+                         color.opacity(0.18), .clear],
+                startPoint: .top, endPoint: .bottom
+            )
+            .frame(height: 80)
+            .offset(y: offset)
+            .onAppear {
+                withAnimation(.linear(duration: 2.8).repeatForever(autoreverses: false)) {
+                    offset = geo.size.height + 80
+                }
+            }
+        }
+        .clipped()
+    }
+}
+
+// ── Panic mode flashing border ────────────────────────────────────────────────
+
+struct PanicFlashBorder: ViewModifier {
+    var radius: CGFloat = GWR.md
     @State private var bright = false
 
     func body(content: Content) -> some View {
         content.overlay(
-            RoundedRectangle(cornerRadius: GWRadius.lg, style: .continuous)
-                .strokeBorder(Color.gwPanic.opacity(bright ? 0.85 : 0.3), lineWidth: 1.5)
-                .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true),
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .strokeBorder(Color.gwPanic.opacity(bright ? 0.80 : 0.25), lineWidth: 1.5)
+                .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true),
                             value: bright)
         )
         .onAppear { bright = true }
@@ -100,7 +87,21 @@ struct PanicBorderFlash: ViewModifier {
 }
 
 extension View {
-    func panicBorderFlash() -> some View {
-        modifier(PanicBorderFlash())
+    func panicFlash(radius: CGFloat = GWR.md) -> some View {
+        modifier(PanicFlashBorder(radius: radius))
+    }
+}
+
+// ── Slide + fade transition preset ───────────────────────────────────────────
+
+extension AnyTransition {
+    static var gwSlideIn: AnyTransition {
+        .asymmetric(
+            insertion: .move(edge: .trailing).combined(with: .opacity),
+            removal:   .move(edge: .trailing).combined(with: .opacity)
+        )
+    }
+    static var gwFadeIn: AnyTransition {
+        .opacity.combined(with: .scale(scale: 0.97))
     }
 }

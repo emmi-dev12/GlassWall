@@ -1,0 +1,181 @@
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Background gradient: very dark navy -->
+    <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#0E1628"/>
+      <stop offset="100%" stop-color="#060B16"/>
+    </linearGradient>
+
+    <!-- Shield body gradient: deep blue-glass -->
+    <linearGradient id="shieldBody" x1="512" y1="158" x2="512" y2="855" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#1C3A72" stop-opacity="0.90"/>
+      <stop offset="55%"  stop-color="#0F2450" stop-opacity="0.92"/>
+      <stop offset="100%" stop-color="#081830" stop-opacity="0.96"/>
+    </linearGradient>
+
+    <!-- Shield rim gradient: teal edge -->
+    <linearGradient id="shieldRim" x1="512" y1="158" x2="512" y2="855" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#2DD4BF"/>
+      <stop offset="50%"  stop-color="#0EA5E9"/>
+      <stop offset="100%" stop-color="#2DD4BF" stop-opacity="0.4"/>
+    </linearGradient>
+
+    <!-- Brick accent lines gradient -->
+    <linearGradient id="brickLine" x1="284" y1="0" x2="740" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#2DD4BF" stop-opacity="0"/>
+      <stop offset="20%"  stop-color="#2DD4BF" stop-opacity="0.55"/>
+      <stop offset="50%"  stop-color="#38BDF8" stop-opacity="0.70"/>
+      <stop offset="80%"  stop-color="#2DD4BF" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#2DD4BF" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Specular highlight on glass -->
+    <linearGradient id="specular" x1="284" y1="158" x2="560" y2="460" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#FFFFFF" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Ambient glow filter behind shield -->
+    <filter id="ambientGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="36"/>
+    </filter>
+
+    <!-- Sharp edge glow on shield border -->
+    <filter id="rimGlow" x="-8%" y="-8%" width="116%" height="116%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="8" result="blur"/>
+      <feFlood flood-color="#2DD4BF" flood-opacity="0.75" result="color"/>
+      <feComposite in="color" in2="blur" operator="in" result="glow"/>
+      <feMerge>
+        <feMergeNode in="glow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Subtle inner shadow on shield -->
+    <filter id="innerShadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="14" result="blur"/>
+      <feOffset dx="0" dy="8" result="offset"/>
+      <feComposite in="SourceGraphic" in2="offset" operator="over"/>
+    </filter>
+
+    <!-- Shield outline clip path -->
+    <clipPath id="shieldMask">
+      <!-- Symmetric shield: top arch, straight sides, pointed bottom -->
+      <path d="
+        M512,168
+        C512,168 700,238 726,260
+        L726,505
+        C726,672 618,782 512,852
+        C406,782 298,672 298,505
+        L298,260
+        C324,238 512,168 512,168
+        Z
+      "/>
+    </clipPath>
+  </defs>
+
+  <!-- ── App background: dark rounded rectangle ── -->
+  <rect width="1024" height="1024" rx="220" fill="url(#bg)"/>
+
+  <!-- Subtle corner-to-corner depth gradient overlay -->
+  <rect width="1024" height="1024" rx="220"
+        fill="url(#bg)" opacity="0.5"/>
+
+  <!-- ── Ambient teal glow behind shield ── -->
+  <ellipse cx="512" cy="490" rx="260" ry="300"
+           fill="#2DD4BF" opacity="0.12" filter="url(#ambientGlow)"/>
+
+  <!-- ── Shield body ── -->
+  <path d="
+    M512,168
+    C512,168 700,238 726,260
+    L726,505
+    C726,672 618,782 512,852
+    C406,782 298,672 298,505
+    L298,260
+    C324,238 512,168 512,168
+    Z
+  " fill="url(#shieldBody)"/>
+
+  <!-- ── Glass wall brick pattern (clipped inside shield) ── -->
+  <g clip-path="url(#shieldMask)">
+
+    <!-- Horizontal mortar lines — 6 rows -->
+    <line x1="284" y1="348" x2="740" y2="348"
+          stroke="url(#brickLine)" stroke-width="2.5"/>
+    <line x1="284" y1="424" x2="740" y2="424"
+          stroke="url(#brickLine)" stroke-width="2.5"/>
+    <line x1="284" y1="500" x2="740" y2="500"
+          stroke="url(#brickLine)" stroke-width="2.5"/>
+    <line x1="284" y1="576" x2="740" y2="576"
+          stroke="url(#brickLine)" stroke-width="2.5"/>
+    <line x1="284" y1="652" x2="740" y2="652"
+          stroke="url(#brickLine)" stroke-width="2" opacity="0.6"/>
+    <line x1="284" y1="724" x2="740" y2="724"
+          stroke="url(#brickLine)" stroke-width="1.5" opacity="0.35"/>
+
+    <!-- Vertical joints — staggered brick pattern -->
+    <!-- Row 1 (168–348) -->
+    <line x1="400" y1="200" x2="400" y2="348"
+          stroke="#2DD4BF" stroke-width="1.5" stroke-opacity="0.30"/>
+    <line x1="624" y1="200" x2="624" y2="348"
+          stroke="#2DD4BF" stroke-width="1.5" stroke-opacity="0.30"/>
+
+    <!-- Row 2 (348–424) — offset -->
+    <line x1="512" y1="348" x2="512" y2="424"
+          stroke="#2DD4BF" stroke-width="1.5" stroke-opacity="0.30"/>
+
+    <!-- Row 3 (424–500) -->
+    <line x1="400" y1="424" x2="400" y2="500"
+          stroke="#2DD4BF" stroke-width="1.5" stroke-opacity="0.30"/>
+    <line x1="624" y1="424" x2="624" y2="500"
+          stroke="#2DD4BF" stroke-width="1.5" stroke-opacity="0.30"/>
+
+    <!-- Row 4 (500–576) — offset -->
+    <line x1="512" y1="500" x2="512" y2="576"
+          stroke="#2DD4BF" stroke-width="1.5" stroke-opacity="0.30"/>
+
+    <!-- Row 5 (576–652) -->
+    <line x1="400" y1="576" x2="400" y2="652"
+          stroke="#2DD4BF" stroke-width="1.5" stroke-opacity="0.22"/>
+    <line x1="624" y1="576" x2="624" y2="652"
+          stroke="#2DD4BF" stroke-width="1.5" stroke-opacity="0.22"/>
+
+    <!-- Glass specular highlight — top-left panel -->
+    <path d="M512,172 C430,196 336,248 302,278 L302,420 C302,420 340,230 512,172 Z"
+          fill="url(#specular)"/>
+
+    <!-- Frosted glass inner glow at shield centre -->
+    <ellipse cx="512" cy="490" rx="100" ry="120"
+             fill="#2DD4BF" opacity="0.06"/>
+  </g>
+
+  <!-- ── Shield rim with glow ── -->
+  <path d="
+    M512,168
+    C512,168 700,238 726,260
+    L726,505
+    C726,672 618,782 512,852
+    C406,782 298,672 298,505
+    L298,260
+    C324,238 512,168 512,168
+    Z
+  "
+    fill="none"
+    stroke="url(#shieldRim)"
+    stroke-width="3"
+    filter="url(#rimGlow)"/>
+
+  <!-- ── Top cap accent — banner across top of shield ── -->
+  <path d="M358,282 C380,266 440,244 512,238 C584,244 644,266 666,282"
+        fill="none" stroke="#2DD4BF" stroke-width="3"
+        stroke-linecap="round" stroke-opacity="0.80"/>
+
+  <!-- ── Keystone dot — centre of shield ── -->
+  <circle cx="512" cy="490" r="14" fill="#2DD4BF" opacity="0.90"/>
+  <circle cx="512" cy="490" r="6"  fill="#FFFFFF"  opacity="0.95"/>
+
+  <!-- ── Bottom point glow ── -->
+  <circle cx="512" cy="850" r="18"
+          fill="#2DD4BF" opacity="0.55" filter="url(#ambientGlow)"/>
+</svg>

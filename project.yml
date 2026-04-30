@@ -1,0 +1,121 @@
+name: GlassWall
+options:
+  bundleIdPrefix: com.glasswall
+  deploymentTarget:
+    macOS: "13.0"
+  xcodeVersion: "15"
+  defaultConfig: Debug
+  groupSortPosition: top
+  generateEmptyDirectories: true
+  createIntermediateGroups: true
+
+configs:
+  Debug: debug
+  Release: release
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MACOSX_DEPLOYMENT_TARGET: "13.0"
+    ENABLE_HARDENED_RUNTIME: YES
+    SWIFT_STRICT_CONCURRENCY: complete
+    DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
+  configs:
+    Debug:
+      SWIFT_OPTIMIZATION_LEVEL: "-Onone"
+      ENABLE_TESTABILITY: YES
+    Release:
+      SWIFT_OPTIMIZATION_LEVEL: "-O"
+      ENABLE_TESTABILITY: NO
+
+targets:
+
+  # ── Main Application ────────────────────────────────────────────────────────
+  GlassWall:
+    type: application
+    platform: macOS
+    sources:
+      - path: GlassWall
+        excludes:
+          - "**/*.plist"
+          - "Resources/**"
+      - path: Shared
+    resources:
+      - path: GlassWall/Resources/Info.plist
+      - path: GlassWall/Assets.xcassets
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.glasswall.app
+        INFOPLIST_FILE: GlassWall/Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Entitlements/GlassWall.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES: YES
+        # Universal binary: arm64 (Apple Silicon) + x86_64 (Intel)
+        ARCHS: "$(ARCHS_STANDARD)"
+        VALID_ARCHS: "arm64 x86_64"
+    dependencies:
+      - target: GlassWallNetworkExtension
+        embed: true
+        codeSign: false
+
+  # ── Network Extension (System Extension) ───────────────────────────────────
+  GlassWallNetworkExtension:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: GlassWallNetworkExtension
+        excludes:
+          - "**/*.plist"
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.glasswall.app.networkextension
+        INFOPLIST_FILE: GlassWallNetworkExtension/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Entitlements/GlassWallNetworkExtension.entitlements
+        ARCHS: "$(ARCHS_STANDARD)"
+        VALID_ARCHS: "arm64 x86_64"
+        # Mark as a System Extension (required for NE content filter)
+        APPLICATION_EXTENSION_API_ONLY: NO
+
+  # ── EndpointSecurity Daemon (privileged helper / LaunchDaemon) ─────────────
+  GlassWallESClient:
+    type: tool
+    platform: macOS
+    sources:
+      - path: GlassWallESClient
+        excludes:
+          - "**/*.plist"
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.glasswall.app.esclient
+        CODE_SIGN_ENTITLEMENTS: Entitlements/GlassWallESClient.entitlements
+        ARCHS: "$(ARCHS_STANDARD)"
+        VALID_ARCHS: "arm64 x86_64"
+        INSTALL_PATH: "/Library/PrivilegedHelperTools"
+        SKIP_INSTALL: NO
+
+schemes:
+  GlassWall:
+    build:
+      targets:
+        GlassWall: all
+        GlassWallNetworkExtension: all
+        GlassWallESClient: all
+    run:
+      config: Debug
+      launchAutomaticallySubstyle: 2
+    archive:
+      config: Release
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+
+  GlassWallESClient:
+    build:
+      targets:
+        GlassWallESClient: all
+    run:
+      config: Debug
